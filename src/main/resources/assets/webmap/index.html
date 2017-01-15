@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <title>Web map</title>
+        <link rel="stylesheet" href="https://openlayers.org/en/v3.19.1/css/ol.css" type="text/css">
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+
+            .info {
+                position: absolute;
+                top: 0;
+                width: 100%;
+                text-align: center;
+            }
+        </style>
+        <script src="ol-debug.js"></script>
+    </head>
+    <body>
+        <div id="map" class="map"></div>
+        <pre id="info" class="info"></pre>
+        <script>
+            "use strict";
+
+            let startMessage;
+            const socket = new WebSocket(`${location.href.replace(/http(s?)/, (str, s) => `ws${s}`)}websocket`);
+
+            socket.onopen = () => {
+                console.log("Connected");
+            };
+
+            socket.onclose = (event) => {
+                console.log("Disconnected, clean:", event.wasClean);
+            };
+
+            socket.onmessage = (event) => {
+                console.log("Received:", event.data);
+                let message = JSON.parse(event.data);
+                if(message.type == "start") {
+                    startMessage = message;
+                    const minX = 0;
+                    const minY = 0;
+                    const maxX = startMessage.tileSize;
+                    const maxY = startMessage.tileSize;
+                    const projection = new ol.proj.Projection({
+                        code: "ZOOMIFY",
+                        units: "pixels",
+                        extent: [minX, minY, maxX, maxY]
+                    });
+                    const projectionExtent = projection.getExtent();
+                    const resolutions = [];
+                    for(let z = 0; z < startMessage.layersCount; z++) {
+                        resolutions[z] = ol.extent.getWidth(projectionExtent) / startMessage.tileSize / Math.pow(2, z);
+                    }
+                    const urlTemplate = "tile_{z}_{x}_{y}.png";
+                    const map = new ol.Map({
+                        layers: [new ol.layer.Tile({
+                            source: new ol.source.TileImage({
+                                tileUrlFunction: tileCoord => urlTemplate
+                                    .replace("{z}", ((tileCoord[0])).toString())
+                                    .replace("{x}", (tileCoord[1]).toString())
+                                    .replace("{y}", (((-tileCoord[2]) - 1)).toString()),
+                                wrapX: false,
+                                projection: projection,
+                                tileGrid: new ol.tilegrid.TileGrid({
+                                    origin: ol.extent.getTopLeft(projectionExtent),
+                                    resolutions: resolutions,
+                                    tileSize: startMessage.tileSize
+                                })
+                            }),
+                            extent: projectionExtent
+                        })],
+                        target: "map",
+                        view: new ol.View({
+                            projection: projection,
+                            center: [maxX / 2, maxY / 2],
+                            extent: projectionExtent,
+                            zoom: 0,
+                            resolutions: resolutions
+                        })
+                    });
+                }
+                if(message.type == "tick") {
+                    let etaS = (startMessage.totalFilesCount - message.filesCount) / message.speed;
+                    document.querySelector(".info").innerHTML = `
+Speed: ${Math.round(message.speed)} files/s
+ETA: ${Math.round(etaS / 3600)} h ${Math.round(etaS % 3600 / 60)} m ${Math.round(etaS % 60)} s
+Progress: <progress max="1024" value="${Math.round(message.filesCount / startMessage.totalFilesCount * 1024)}"></progress>
+Queue Size: ${message.queueSize}
+`
+                }
+            };
+
+            socket.onerror = (error) => {
+                console.log("Error:", error.message);
+            };
+        </script>
+    </body>
+</html>
