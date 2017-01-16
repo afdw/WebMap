@@ -9,7 +9,9 @@ import net.minecraft.block.material.Material;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.*;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.VertexBuffer;
 import net.minecraft.client.renderer.block.statemap.BlockStateMapper;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
@@ -18,7 +20,10 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.init.Blocks;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.tileentity.TileEntity;
-import net.minecraft.util.*;
+import net.minecraft.util.EnumBlockRenderType;
+import net.minecraft.util.EnumFacing;
+import net.minecraft.util.Mirror;
+import net.minecraft.util.Rotation;
 import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.RayTraceResult;
@@ -47,14 +52,17 @@ import javax.annotation.Nullable;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -80,7 +88,7 @@ public class ModWebMap {
         }
     }
 
-    private static BlockPos currentPos = new BlockPos(-WORLD_SIZE / 2, 0, -WORLD_SIZE / 2);
+    private static BlockPos currentPos = BlockPos.ORIGIN;
     private static IBlockState[] currentRowBlockStates = new IBlockState[WORLD_HEIGHT];
     private static List<IBlockState> allBlockStates = null;
 
@@ -209,38 +217,39 @@ public class ModWebMap {
         return new File("webmap/tile_" + layer + "_" + tilePos.getX() + "_" + tilePos.getZ() + ".png");
     }
 
-    private void submitTasks(BlockPos tilePos) {
+    private void submitTasks() {
         IBlockState[] rowBlockStatesCopy = currentRowBlockStates.clone();
-        layers[layers.length - 1][tilePos.getX()][tilePos.getZ()] = executor.submit(() -> {
-            drawRow(rowBlockStatesCopy, tilePos);
+        BlockPos finalCurrentPos = currentPos;
+        layers[layers.length - 1][currentPos.getX()][currentPos.getZ()] = executor.submit(() -> {
+            drawRow(rowBlockStatesCopy, finalCurrentPos);
             return null;
         });
         int layer = layers.length - 1;
-        BlockPos tilePosCopy = tilePos;
-        while (layer >= 0 && tilePosCopy.getX() % 2 == 1 && tilePosCopy.getZ() % 2 == 1) {
+        BlockPos currentPosCopy = currentPos;
+        while (layer >= 0 && currentPosCopy.getX() % 2 == 1 && currentPosCopy.getZ() % 2 == 1) {
             Future<?>[] futures = {
                     layers
                             [layer]
-                            [tilePosCopy.getX() - 1]
-                            [tilePosCopy.getZ() - 1],
+                            [currentPosCopy.getX() - 1]
+                            [currentPosCopy.getZ() - 1],
                     layers
                             [layer]
-                            [tilePosCopy.getX()]
-                            [tilePosCopy.getZ() - 1],
+                            [currentPosCopy.getX()]
+                            [currentPosCopy.getZ() - 1],
                     layers
                             [layer]
-                            [tilePosCopy.getX() - 1]
-                            [tilePosCopy.getZ()],
+                            [currentPosCopy.getX() - 1]
+                            [currentPosCopy.getZ()],
                     layers
                             [layer]
-                            [tilePosCopy.getX()]
-                            [tilePosCopy.getZ()]
+                            [currentPosCopy.getX()]
+                            [currentPosCopy.getZ()]
             };
-            tilePosCopy = new BlockPos(tilePosCopy.getX() / 2, tilePosCopy.getY(), tilePosCopy.getZ() / 2);
+            currentPosCopy = new BlockPos(currentPosCopy.getX() / 2, currentPosCopy.getY(), currentPosCopy.getZ() / 2);
             layer--;
             int finalLayer = layer;
-            BlockPos finalTilePosCopy = tilePosCopy;
-            layers[layer][tilePosCopy.getX()][tilePosCopy.getZ()] = executor.submit(() -> {
+            BlockPos finalTilePosCopy = currentPosCopy;
+            layers[layer][currentPosCopy.getX()][currentPosCopy.getZ()] = executor.submit(() -> {
                 for (Future<?> future : futures) {
                     future.get();
                 }
@@ -250,21 +259,21 @@ public class ModWebMap {
         }
     }
 
-    private void nextPos(BlockPos tilePos) {
+    private void nextPos() {
         if (currentPos.getY() == WORLD_HEIGHT - 1) {
-            if (tilePos.getX() % CHUNK_SIZE != CHUNK_SIZE - 1) {
+            if (currentPos.getX() % CHUNK_SIZE != CHUNK_SIZE - 1) {
                 currentPos = new BlockPos(currentPos.getX() + 1, 0, currentPos.getZ());
             } else {
-                if (tilePos.getZ() % CHUNK_SIZE != CHUNK_SIZE - 1) {
+                if (currentPos.getZ() % CHUNK_SIZE != CHUNK_SIZE - 1) {
                     currentPos = new BlockPos(currentPos.getX() - CHUNK_SIZE + 1, 0, currentPos.getZ() + 1);
                 } else {
-                    if (currentPos.getX() < WORLD_SIZE / 2 - 1) {
+                    if (currentPos.getX() < WORLD_SIZE - 1) {
                         currentPos = new BlockPos(currentPos.getX() + 1, 0, currentPos.getZ() - CHUNK_SIZE + 1);
                     } else {
-                        if (currentPos.getZ() < WORLD_SIZE / 2 - 1) {
-                            currentPos = new BlockPos(-WORLD_SIZE / 2, 0, currentPos.getZ() + 1);
+                        if (currentPos.getZ() < WORLD_SIZE - 1) {
+                            currentPos = new BlockPos(0, 0, currentPos.getZ() + 1);
                         } else {
-                            currentPos = new BlockPos(-WORLD_SIZE / 2, 0, -WORLD_SIZE / 2);
+                            currentPos = new BlockPos(0, 0, 0);
                         }
                     }
                 }
@@ -301,6 +310,10 @@ public class ModWebMap {
         HttpServerWebSocketHandler.sendToAll(message);
     }
 
+    private static BlockPos convertToWorldPos(BlockPos tilePos) {
+        return new BlockPos(tilePos.getX() - WORLD_SIZE / 2, tilePos.getY(), tilePos.getZ() + WORLD_SIZE / 2);
+    }
+
     @SubscribeEvent
     public void onServerTick(TickEvent.ServerTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
@@ -309,12 +322,11 @@ public class ModWebMap {
         MinecraftServer server = FMLCommonHandler.instance().getMinecraftServerInstance();
         World world = server.worldServerForDimension(DimensionType.OVERWORLD.getId()); // FIXME: dimensions
         while (System.currentTimeMillis() < server.getCurrentTime() + 40 && executor.getQueue().size() < executor.getMaximumPoolSize() * 64) {
-            BlockPos tilePos = currentPos.add(new BlockPos(WORLD_SIZE / 2, 0, WORLD_SIZE / 2));
-            currentRowBlockStates[currentPos.getY()] = world.getBlockState(currentPos);
+            currentRowBlockStates[currentPos.getY()] = world.getBlockState(convertToWorldPos(currentPos));
             if (currentPos.getY() == WORLD_HEIGHT - 1) {
-                submitTasks(tilePos);
+                submitTasks();
             }
-            nextPos(tilePos);
+            nextPos();
         }
         sendTickMessageToAll();
     }
@@ -348,8 +360,9 @@ public class ModWebMap {
         int displayWidth = Minecraft.getMinecraft().displayWidth;
         int displayHeight = Minecraft.getMinecraft().displayHeight;
         long time = System.currentTimeMillis();
+        IBlockState state = Blocks.AIR.getDefaultState();
         while (!blockStateQueue.isEmpty() && (System.currentTimeMillis() - time) < 1000 / 60) {
-            IBlockState state = blockStateQueue.poll();
+            state = blockStateQueue.poll();
             GlStateManager.clearColor(0, 0, 0, 0);
             GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
             GlStateManager.viewport(0, 0, displayWidth, displayHeight);
@@ -360,6 +373,7 @@ public class ModWebMap {
             GL11.glLoadIdentity();
             VertexBuffer vb = Tessellator.getInstance().getBuffer();
             vb.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
+            IBlockState finalState = state;
             Minecraft.getMinecraft().getBlockRendererDispatcher().renderBlock(state, BlockPos.ORIGIN, new IBlockAccess() {
                 @Nullable
                 @Override
@@ -374,9 +388,9 @@ public class ModWebMap {
 
                 @Override
                 public IBlockState getBlockState(BlockPos pos) {
-                    return pos.equals(BlockPos.ORIGIN) ? state : new IBlockState() {
+                    return pos.equals(BlockPos.ORIGIN) ? finalState : new IBlockState() {
                         @Override
-                        public Collection<IProperty<?>> getPropertyNames() {
+                        public Collection<IProperty<?>> getPropertyKeys() {
                             return null;
                         }
 
@@ -481,7 +495,7 @@ public class ModWebMap {
                         }
 
                         @Override
-                        public boolean func_191057_i() {
+                        public boolean hasCustomBreakingProgress() {
                             return false;
                         }
 
@@ -577,7 +591,7 @@ public class ModWebMap {
                         }
 
                         @Override
-                        public void addCollisionBoxToList(World worldIn, BlockPos pos, AxisAlignedBB p_185908_3_, List<AxisAlignedBB> p_185908_4_, @Nullable Entity p_185908_5_) {
+                        public void addCollisionBoxToList(World worldIn, BlockPos pos, AxisAlignedBB entityBox, List<AxisAlignedBB> collidingBoxes, @Nullable Entity entityIn, boolean p_185908_6_) {
 
                         }
 
@@ -607,12 +621,12 @@ public class ModWebMap {
                         }
 
                         @Override
-                        public Vec3d func_191059_e(IBlockAccess p_191059_1_, BlockPos p_191059_2_) {
+                        public Vec3d getOffset(IBlockAccess access, BlockPos pos) {
                             return null;
                         }
 
                         @Override
-                        public boolean func_191058_s() {
+                        public boolean causesSuffocation() {
                             return false;
                         }
                     };
@@ -654,23 +668,19 @@ public class ModWebMap {
             ByteBuffer buffer = BufferUtils.createByteBuffer(TILE_SIZE * TILE_SIZE * 4);
             GL11.glReadPixels(0, displayHeight - TILE_SIZE, TILE_SIZE, TILE_SIZE, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, buffer);
             BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
-            for (int i = 0; i < TILE_SIZE * TILE_SIZE * 4; i += 4) {
-                image.setRGB(
-                        i / 4 % TILE_SIZE,
-                        TILE_SIZE - 1 - i / 4 / TILE_SIZE,
-                        new Color(
-                                buffer.get(i) & 0xFF,
-                                buffer.get(i + 1) & 0xFF,
-                                buffer.get(i + 2) & 0xFF,
-                                buffer.get(i + 3) & 0xFF
-                        ).getRGB()
-                );
+            int[] rgbArray = new int[TILE_SIZE * TILE_SIZE];
+            for (int i = 0; i < TILE_SIZE * TILE_SIZE; i++) {
+                int p = i * 4;
+                rgbArray[i] = (buffer.get(p + 3) & 0xFF) << 24 | (buffer.get(p) & 0xFF) << 16 | (buffer.get(p + 1) & 0xFF) << 8 | buffer.get(p + 2) & 0xFF;
             }
+            image.setRGB(0, 0, TILE_SIZE, TILE_SIZE, rgbArray, 0, TILE_SIZE);
             try {
                 ImageIO.write(image, "PNG", new File("blockstates/" + state.toString() + ".png"));
             } catch (IOException e) {
                 e.printStackTrace();
             }
+        }
+        if (allBlockStates != null ) {
             GlStateManager.disableTexture2D();
             GlStateManager.color(1, 1, 1, 1);
             GlStateManager.glBegin(GL11.GL_QUADS);
