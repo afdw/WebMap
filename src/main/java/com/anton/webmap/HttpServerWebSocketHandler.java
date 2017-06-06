@@ -38,7 +38,7 @@ public class HttpServerWebSocketHandler extends SimpleChannelInboundHandler<Full
 
     public static void sendToAll(HashMap<String, Object> message) {
         HttpServerWebSocketHandler.channels.stream()
-                .filter(Channel::isWritable)
-                .forEach(channel -> sendTo(channel, message));
+            .filter(Channel::isWritable)
+            .forEach(channel -> sendTo(channel, message));
     }
 }

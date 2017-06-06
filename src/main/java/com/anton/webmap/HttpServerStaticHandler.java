@@ -26,7 +26,7 @@ public class HttpServerStaticHandler extends SimpleChannelInboundHandler<FullHtt
 
     @Override
     public void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) throws Exception {
-        if(request.getUri().equals("/websocket")) {
+        if (request.getUri().equals("/websocket")) {
             new HttpServerWebSocketHandler().channelRead0(ctx, request);
             return;
         }
@@ -114,11 +114,11 @@ public class HttpServerStaticHandler extends SimpleChannelInboundHandler<FullHtt
         ChannelFuture sendFileFuture;
         if (ctx.pipeline().get(SslHandler.class) == null) {
             sendFileFuture =
-                    ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise());
+                ctx.write(new DefaultFileRegion(raf.getChannel(), 0, fileLength), ctx.newProgressivePromise());
         } else {
             sendFileFuture =
-                    ctx.write(new HttpChunkedInput(new ChunkedFile(raf, 0, fileLength, 8192)),
-                            ctx.newProgressivePromise());
+                ctx.write(new HttpChunkedInput(new ChunkedFile(raf, 0, fileLength, 8192)),
+                    ctx.newProgressivePromise());
         }
 
         sendFileFuture.addListener(new ChannelProgressiveFutureListener() {
@@ -175,9 +175,9 @@ public class HttpServerStaticHandler extends SimpleChannelInboundHandler<FullHtt
         // Simplistic dumb security check.
         // You will have to do something serious in the production environment.
         if (uri.contains(File.separator + ".") ||
-                uri.contains("." + File.separator) ||
-                uri.startsWith(".") || uri.endsWith(".") ||
-                INSECURE_URI.matcher(uri).matches()) {
+            uri.contains("." + File.separator) ||
+            uri.startsWith(".") || uri.endsWith(".") ||
+            INSECURE_URI.matcher(uri).matches()) {
             return null;
         }
 
@@ -187,7 +187,7 @@ public class HttpServerStaticHandler extends SimpleChannelInboundHandler<FullHtt
 
     private static void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
         FullHttpResponse response = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status + "\r\n", CharsetUtil.UTF_8));
+            HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status + "\r\n", CharsetUtil.UTF_8));
         response.headers().set(HttpHeaders.Names.CONTENT_TYPE, "text/plain; charset=UTF-8");
 
         // Close the connection as soon as the error message is sent.
@@ -239,7 +239,7 @@ public class HttpServerStaticHandler extends SimpleChannelInboundHandler<FullHtt
         response.headers().set(org.apache.http.HttpHeaders.EXPIRES, dateFormatter.format(time.getTime()));
         response.headers().set(HttpHeaders.Names.CACHE_CONTROL, "private, max-age=" + HTTP_CACHE_SECONDS);
         response.headers().set(
-                HttpHeaders.Names.LAST_MODIFIED, dateFormatter.format(new Date(fileToCache.lastModified())));
+            HttpHeaders.Names.LAST_MODIFIED, dateFormatter.format(new Date(fileToCache.lastModified())));
     }
 
     /**

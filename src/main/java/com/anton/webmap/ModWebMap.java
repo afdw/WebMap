@@ -131,10 +131,10 @@ public class ModWebMap {
 
     private void drawRow(IBlockState[] rowBlockStates, BlockPos tilePos) {
         List<ImageEntry> imageEntries = Arrays.stream(rowBlockStates)
-                .filter(blockState -> blockState.getBlock() != Blocks.AIR)
-                .map(this::getImageEntry)
-                .distinct()
-                .collect(Collectors.toList());
+            .filter(blockState -> blockState.getBlock() != Blocks.AIR)
+            .map(this::getImageEntry)
+            .distinct()
+            .collect(Collectors.toList());
         for (int i = imageEntries.size() - 1; i >= 0; i--) {
             ImageEntry entry = imageEntries.get(i);
             if (entry.hasNoTransparentPixels) {
@@ -152,18 +152,18 @@ public class ModWebMap {
                 Files.copy(imageEntry.file.toPath(), file.toPath());
             } else {
                 File cacheFile = new File(
-                        "cache/" + imageEntries.stream()
-                                .map(imageEntry -> imageEntry.state)
-                                .map(Object::toString)
-                                .reduce((a, b) -> a + ";" + b)
-                                .orElse(null)
+                    "cache/" + imageEntries.stream()
+                        .map(imageEntry -> imageEntry.state)
+                        .map(Object::toString)
+                        .reduce((a, b) -> a + ";" + b)
+                        .orElse(null)
                 );
                 if (!cacheFile.exists()) {
                     BufferedImage image = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_ARGB);
                     Graphics2D graphics = image.createGraphics();
                     imageEntries.stream()
-                            .map(imageEntry -> imageEntry.image)
-                            .forEach(blockStateImage -> graphics.drawImage(blockStateImage, 0, 0, null));
+                        .map(imageEntry -> imageEntry.image)
+                        .forEach(blockStateImage -> graphics.drawImage(blockStateImage, 0, 0, null));
                     ImageIO.write(image, "PNG", cacheFile);
                 }
                 Files.copy(cacheFile.toPath(), file.toPath());
@@ -180,31 +180,31 @@ public class ModWebMap {
         graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         Stream.of(
-                new BlockPos(0, 0, 0),
-                new BlockPos(1, 0, 0),
-                new BlockPos(0, 0, 1),
-                new BlockPos(1, 0, 1)
+            new BlockPos(0, 0, 0),
+            new BlockPos(1, 0, 0),
+            new BlockPos(0, 0, 1),
+            new BlockPos(1, 0, 1)
         )
-                .forEach(tileOffset -> {
-                    BlockPos tilePosCurrent = new BlockPos(tilePos.getX() * 2, tilePos.getY(), tilePos.getZ() * 2).add(tileOffset);
-                    int layerCurrent = layer + 1;
-                    try {
-                        graphics.drawImage(
-                                ImageIO.read(getTileFile(layerCurrent, tilePosCurrent)),
-                                tileOffset.getX() * TILE_SIZE / 2,
-                                tileOffset.getZ() * TILE_SIZE / 2,
-                                (tileOffset.getX() + 1) * TILE_SIZE / 2,
-                                (tileOffset.getZ() + 1) * TILE_SIZE / 2,
-                                0,
-                                0,
-                                TILE_SIZE,
-                                TILE_SIZE,
-                                null
-                        );
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                });
+            .forEach(tileOffset -> {
+                BlockPos tilePosCurrent = new BlockPos(tilePos.getX() * 2, tilePos.getY(), tilePos.getZ() * 2).add(tileOffset);
+                int layerCurrent = layer + 1;
+                try {
+                    graphics.drawImage(
+                        ImageIO.read(getTileFile(layerCurrent, tilePosCurrent)),
+                        tileOffset.getX() * TILE_SIZE / 2,
+                        tileOffset.getZ() * TILE_SIZE / 2,
+                        (tileOffset.getX() + 1) * TILE_SIZE / 2,
+                        (tileOffset.getZ() + 1) * TILE_SIZE / 2,
+                        0,
+                        0,
+                        TILE_SIZE,
+                        TILE_SIZE,
+                        null
+                    );
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
         try {
             ImageIO.write(image, "PNG", getTileFile(layer, tilePos));
         } catch (IOException e) {
@@ -228,22 +228,22 @@ public class ModWebMap {
         BlockPos currentPosCopy = currentPos;
         while (layer >= 0 && currentPosCopy.getX() % 2 == 1 && currentPosCopy.getZ() % 2 == 1) {
             Future<?>[] futures = {
-                    layers
-                            [layer]
-                            [currentPosCopy.getX() - 1]
-                            [currentPosCopy.getZ() - 1],
-                    layers
-                            [layer]
-                            [currentPosCopy.getX()]
-                            [currentPosCopy.getZ() - 1],
-                    layers
-                            [layer]
-                            [currentPosCopy.getX() - 1]
-                            [currentPosCopy.getZ()],
-                    layers
-                            [layer]
-                            [currentPosCopy.getX()]
-                            [currentPosCopy.getZ()]
+                layers
+                    [layer]
+                    [currentPosCopy.getX() - 1]
+                    [currentPosCopy.getZ() - 1],
+                layers
+                    [layer]
+                    [currentPosCopy.getX()]
+                    [currentPosCopy.getZ() - 1],
+                layers
+                    [layer]
+                    [currentPosCopy.getX() - 1]
+                    [currentPosCopy.getZ()],
+                layers
+                    [layer]
+                    [currentPosCopy.getX()]
+                    [currentPosCopy.getZ()]
             };
             currentPosCopy = new BlockPos(currentPosCopy.getX() / 2, currentPosCopy.getY(), currentPosCopy.getZ() / 2);
             layer--;
@@ -680,7 +680,7 @@ public class ModWebMap {
                 e.printStackTrace();
             }
         }
-        if (allBlockStates != null ) {
+        if (allBlockStates != null) {
             GlStateManager.disableTexture2D();
             GlStateManager.color(1, 1, 1, 1);
             GlStateManager.glBegin(GL11.GL_QUADS);

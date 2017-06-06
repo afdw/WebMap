@@ -19,8 +19,8 @@ public class ImageEntry {
         file = new File("blockstates/" + state.toString() + ".png");
         image = ImageIO.read(file);
         hasNoTransparentPixels = Arrays.stream(image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth()))
-                .map(color -> (color >> 24) & 0x000000FF)
-                .allMatch(alpha -> alpha == 0xFF);
+            .map(color -> (color >> 24) & 0x000000FF)
+            .allMatch(alpha -> alpha == 0xFF);
 //        int[] alphas = Arrays.stream(image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth()))
 //                .map(color -> (color >> 24) & 0x000000FF)
 //                .toArray();
