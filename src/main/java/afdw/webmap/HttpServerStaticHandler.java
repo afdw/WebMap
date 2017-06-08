@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import io.netty.buffer.Unpooled;
 import io.netty.channel.*;

@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.util.ResourceLocation;

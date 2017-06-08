@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import javax.swing.*;
 import java.awt.image.BufferedImage;

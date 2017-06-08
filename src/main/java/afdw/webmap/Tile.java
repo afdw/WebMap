@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import java.io.Closeable;
 import java.io.IOException;

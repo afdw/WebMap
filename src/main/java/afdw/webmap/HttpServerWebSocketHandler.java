@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import com.google.gson.Gson;
 import io.netty.channel.Channel;

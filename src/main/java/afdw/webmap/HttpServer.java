@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;

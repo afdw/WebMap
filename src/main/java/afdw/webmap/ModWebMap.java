@@ -1,4 +1,4 @@
-package com.anton.webmap;
+package afdw.webmap;
 
 import io.netty.channel.ChannelHandlerContext;
 import net.minecraft.block.state.IBlockState;
