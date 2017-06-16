@@ -38,6 +38,10 @@ repositories {
         name = "Apache Development Snapshot Repository"
         url = "https://repository.apache.org/content/repositories/snapshots"
     }
+    maven {
+        name = "jitpack.io"
+        url = "https://jitpack.io"
+    }
 }
 
 dependencies {
@@ -62,6 +66,7 @@ dependencies {
     // http://www.gradle.org/docs/current/userguide/artifact_dependencies_tutorial.html
     // http://www.gradle.org/docs/current/userguide/dependency_management.html
 
+    compile "com.github.afdw:smallpng:master-SNAPSHOT"
 }
 
 processResources {

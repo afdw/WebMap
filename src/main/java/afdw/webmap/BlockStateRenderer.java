@@ -1,5 +1,6 @@
 package afdw.webmap;
 
+import afdw.smallpng.SmallPNG;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
@@ -26,10 +27,10 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Paths;
@@ -165,22 +166,10 @@ public enum BlockStateRenderer {
                 buffer
             );
             compressorExecutor.submit(() -> {
-                BufferedImage image = new BufferedImage(Tile.SIZE, Tile.SIZE, BufferedImage.TYPE_INT_ARGB);
-                int[] rgbArray = new int[Tile.SIZE * Tile.SIZE];
-                for (int i = 0; i < Tile.SIZE * Tile.SIZE; i++) {
-                    int p = i * 4;
-                    rgbArray[i] = (buffer.get(p + 3) & 0xFF) << 24 |
-                        (buffer.get(p) & 0xFF) << 16 |
-                        (buffer.get(p + 1) & 0xFF) << 8 |
-                        buffer.get(p + 2) & 0xFF;
-                }
-                image.setRGB(0, 0, Tile.SIZE, Tile.SIZE, rgbArray, 0, Tile.SIZE);
-                try {
-                    ImageIO.write(
-                        image,
-                        "PNG",
-                        Paths.get("blockstates", Helpers.blockStateToString(state) + ".png").toFile()
-                    );
+                try (OutputStream outputStream = new FileOutputStream(
+                    Paths.get("blockstates", Helpers.blockStateToString(state) + ".png").toFile()
+                )) {
+                    SmallPNG.write(outputStream, buffer, Tile.SIZE, Tile.SIZE);
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
