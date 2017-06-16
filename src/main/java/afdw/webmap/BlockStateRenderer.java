@@ -45,10 +45,10 @@ public enum BlockStateRenderer {
         Comparator.comparing(Helpers::blockStateToString)
     );
     private final Queue<IBlockState> blockStateQueue = new ArrayDeque<>();
-    private final ThreadPoolExecutor compressorExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
+    private final ThreadPoolExecutor writerExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
         Runtime.getRuntime().availableProcessors(),
         new ThreadFactoryBuilder()
-            .setNameFormat("BlockState Compressor %d")
+            .setNameFormat("BlockState Writer %d")
             .setDaemon(true)
             .build()
     );
@@ -79,7 +79,7 @@ public enum BlockStateRenderer {
     public void onGuiScreen(GuiScreenEvent.DrawScreenEvent.Post event) {
         int displayWidth = Minecraft.getMinecraft().displayWidth;
         int displayHeight = Minecraft.getMinecraft().displayHeight;
-        if (!blockStateQueue.isEmpty() || !compressorExecutor.getQueue().isEmpty()) {
+        if (!blockStateQueue.isEmpty() || !writerExecutor.getQueue().isEmpty()) {
             GlStateManager.clearColor(0, 0, 0, 0);
             GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
             GlStateManager.viewport(0, 0, displayWidth, displayHeight);
@@ -92,7 +92,7 @@ public enum BlockStateRenderer {
         long time = System.currentTimeMillis();
         IBlockState lastState = Blocks.AIR.getDefaultState();
         while (!blockStateQueue.isEmpty() &&
-            compressorExecutor.getQueue().size() < 1000 &&
+            writerExecutor.getQueue().size() < 1000 &&
             (System.currentTimeMillis() - time) < 1000 / 60) {
             GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
             IBlockState state = blockStateQueue.poll();
@@ -165,7 +165,7 @@ public enum BlockStateRenderer {
                 GL11.GL_UNSIGNED_BYTE,
                 buffer
             );
-            compressorExecutor.submit(() -> {
+            writerExecutor.submit(() -> {
                 try (OutputStream outputStream = new FileOutputStream(
                     Paths.get("blockstates", Helpers.blockStateToString(state) + ".png").toFile()
                 )) {
@@ -210,7 +210,7 @@ public enum BlockStateRenderer {
         Tessellator.getInstance().draw();
         GlStateManager.enableTexture2D();
         Minecraft.getMinecraft().fontRendererObj.drawString(
-            "Compressing queue size: " + compressorExecutor.getQueue().size(),
+            "Compressing queue size: " + writerExecutor.getQueue().size(),
             0,
             displayHeight - 48,
             0xFFFFFFFF
