@@ -1,13 +1,14 @@
 package afdw.webmap;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.VertexBuffer;
 import net.minecraft.client.renderer.block.statemap.BlockStateMapper;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.init.Biomes;
 import net.minecraft.init.Blocks;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
@@ -25,11 +26,16 @@ import org.lwjgl.input.Keyboard;
 import org.lwjgl.opengl.GL11;
 
 import javax.annotation.Nullable;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public enum BlockStateRenderer {
     INSTANCE;
@@ -37,7 +43,14 @@ public enum BlockStateRenderer {
     private final Set<IBlockState> allBlockStates = new TreeSet<>(
         Comparator.comparing(Helpers::blockStateToString)
     );
-    private static final Queue<IBlockState> blockStateQueue = new ArrayDeque<>();
+    private final Queue<IBlockState> blockStateQueue = new ArrayDeque<>();
+    private final ThreadPoolExecutor compressorExecutor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors(),
+        new ThreadFactoryBuilder()
+            .setNameFormat("BlockState Compressor %d")
+            .setDaemon(true)
+            .build()
+    );
 
     @SubscribeEvent
     @SideOnly(Side.CLIENT)
@@ -48,9 +61,7 @@ public enum BlockStateRenderer {
             }
             if (blockStateQueue.isEmpty()) {
                 try {
-                    if (!new File("blockstates").mkdirs()) {
-                        throw new IOException();
-                    }
+                    Files.createDirectories(Paths.get("blockstates"));
                     FileUtils.cleanDirectory(new File("blockstates"));
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -67,62 +78,74 @@ public enum BlockStateRenderer {
     public void onGuiScreen(GuiScreenEvent.DrawScreenEvent.Post event) {
         int displayWidth = Minecraft.getMinecraft().displayWidth;
         int displayHeight = Minecraft.getMinecraft().displayHeight;
-        long time = System.currentTimeMillis();
-        IBlockState lastState = Blocks.AIR.getDefaultState();
-        while (!blockStateQueue.isEmpty() && (System.currentTimeMillis() - time) < 1000 / 60) {
-            IBlockState state = blockStateQueue.poll();
+        if (!blockStateQueue.isEmpty() || !compressorExecutor.getQueue().isEmpty()) {
             GlStateManager.clearColor(0, 0, 0, 0);
             GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
             GlStateManager.viewport(0, 0, displayWidth, displayHeight);
-            GL11.glMatrixMode(GL11.GL_PROJECTION);
-            GL11.glLoadIdentity();
-            GL11.glOrtho(0, displayWidth, displayHeight, 0, -Tile.SIZE, Tile.SIZE);
-            GL11.glMatrixMode(GL11.GL_MODELVIEW);
-            GL11.glLoadIdentity();
-            VertexBuffer vb = Tessellator.getInstance().getBuffer();
-            vb.begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
-            Minecraft.getMinecraft().getBlockRendererDispatcher().renderBlock(state, BlockPos.ORIGIN, new IBlockAccess() {
-                @Nullable
-                @Override
-                public TileEntity getTileEntity(BlockPos pos) {
-                    return null;
-                }
+            GlStateManager.matrixMode(GL11.GL_PROJECTION);
+            GlStateManager.loadIdentity();
+            GlStateManager.ortho(0, displayWidth, displayHeight, 0, -Tile.SIZE, Tile.SIZE);
+            GlStateManager.matrixMode(GL11.GL_MODELVIEW);
+            GlStateManager.loadIdentity();
+        }
+        long time = System.currentTimeMillis();
+        IBlockState lastState = Blocks.AIR.getDefaultState();
+        while (!blockStateQueue.isEmpty() &&
+            compressorExecutor.getQueue().size() < 1000 &&
+            (System.currentTimeMillis() - time) < 1000 / 60) {
+            GlStateManager.clear(GL11.GL_DEPTH_BUFFER_BIT | GL11.GL_COLOR_BUFFER_BIT);
+            IBlockState state = blockStateQueue.poll();
+            Tessellator.getInstance().getBuffer().begin(GL11.GL_QUADS, DefaultVertexFormats.BLOCK);
+            try {
+                Minecraft.getMinecraft().getBlockRendererDispatcher().renderBlock(state, BlockPos.ORIGIN, new IBlockAccess() {
+                    @Nullable
+                    @Override
+                    public TileEntity getTileEntity(BlockPos pos) {
+                        return null;
+                    }
 
-                @Override
-                public int getCombinedLight(BlockPos pos, int lightValue) {
-                    return 15 << 20 | 15 << 4;
-                }
+                    @Override
+                    public int getCombinedLight(BlockPos pos, int lightValue) {
+                        return 15 << 20 | 15 << 4;
+                    }
 
-                @Override
-                public IBlockState getBlockState(BlockPos pos) {
-                    return pos.equals(BlockPos.ORIGIN) ? state : Blocks.AIR.getDefaultState();
-                }
+                    @Override
+                    public IBlockState getBlockState(BlockPos pos) {
+                        return pos.equals(BlockPos.ORIGIN) ? state : Blocks.AIR.getDefaultState();
+                    }
 
-                @Override
-                public boolean isAirBlock(BlockPos pos) {
-                    return !pos.equals(BlockPos.ORIGIN);
-                }
+                    @Override
+                    public boolean isAirBlock(BlockPos pos) {
+                        return !pos.equals(BlockPos.ORIGIN);
+                    }
 
-                @Override
-                public Biome getBiome(BlockPos pos) {
-                    return Biome.getBiome(1);
-                }
+                    @SuppressWarnings("ConstantConditions")
+                    @Override
+                    public Biome getBiome(BlockPos pos) {
+                        return Biomes.PLAINS;
+                    }
 
-                @Override
-                public int getStrongPower(BlockPos pos, EnumFacing direction) {
-                    return 0;
-                }
+                    @Override
+                    public int getStrongPower(BlockPos pos, EnumFacing direction) {
+                        return 0;
+                    }
 
-                @Override
-                public WorldType getWorldType() {
-                    return WorldType.DEBUG_WORLD;
-                }
+                    @Override
+                    public WorldType getWorldType() {
+                        return WorldType.DEBUG_WORLD;
+                    }
 
-                @Override
-                public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean _default) {
-                    return _default;
-                }
-            }, vb);
+                    @Override
+                    public boolean isSideSolid(BlockPos pos, EnumFacing side, boolean _default) {
+                        return _default;
+                    }
+                }, Tessellator.getInstance().getBuffer());
+            } catch (Exception e) {
+                Tessellator.getInstance().getBuffer().finishDrawing();
+                Tessellator.getInstance().getBuffer().reset();
+                e.printStackTrace();
+                continue;
+            }
             Minecraft.getMinecraft().renderEngine.bindTexture(TextureMap.LOCATION_BLOCKS_TEXTURE);
             GlStateManager.pushMatrix();
             GlStateManager.scale(Tile.SIZE, Tile.SIZE, Tile.SIZE);
@@ -141,25 +164,73 @@ public enum BlockStateRenderer {
                 GL11.GL_UNSIGNED_BYTE,
                 buffer
             );
-            try {
-                Tile tile = new Tile(Paths.get("blockstates", state.toString() + Tile.EXTENSION));
-                tile.buffer.put(buffer);
-                tile.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+            compressorExecutor.submit(() -> {
+                BufferedImage image = new BufferedImage(Tile.SIZE, Tile.SIZE, BufferedImage.TYPE_INT_ARGB);
+                int[] rgbArray = new int[Tile.SIZE * Tile.SIZE];
+                for (int i = 0; i < Tile.SIZE * Tile.SIZE; i++) {
+                    int p = i * 4;
+                    rgbArray[i] = (buffer.get(p + 3) & 0xFF) << 24 |
+                        (buffer.get(p) & 0xFF) << 16 |
+                        (buffer.get(p + 1) & 0xFF) << 8 |
+                        buffer.get(p + 2) & 0xFF;
+                }
+                image.setRGB(0, 0, Tile.SIZE, Tile.SIZE, rgbArray, 0, Tile.SIZE);
+                try {
+                    ImageIO.write(
+                        image,
+                        "PNG",
+                        Paths.get("blockstates", Helpers.blockStateToString(state) + ".png").toFile()
+                    );
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            });
             lastState = state;
         }
         GlStateManager.disableTexture2D();
         GlStateManager.color(1, 1, 1, 1);
-        GlStateManager.glBegin(GL11.GL_QUADS);
-        double posX = displayWidth - (double) displayWidth / allBlockStates.size() * blockStateQueue.size();
-        GL11.glVertex2d(0, displayHeight - 16);
-        GL11.glVertex2d(0, displayHeight);
-        GL11.glVertex2d(posX, displayHeight);
-        GL11.glVertex2d(posX, displayHeight - 16);
-        GlStateManager.glEnd();
+        Tessellator.getInstance().getBuffer().begin(GL11.GL_QUADS, DefaultVertexFormats.POSITION);
+        Tessellator.getInstance().getBuffer()
+            .pos(
+                0,
+                displayHeight - 16,
+                0
+            )
+            .endVertex();
+        Tessellator.getInstance().getBuffer()
+            .pos(
+                0,
+                displayHeight,
+                0
+            )
+            .endVertex();
+        Tessellator.getInstance().getBuffer()
+            .pos(
+                displayWidth - (double) displayWidth / allBlockStates.size() * blockStateQueue.size(),
+                displayHeight,
+                0
+            )
+            .endVertex();
+        Tessellator.getInstance().getBuffer()
+            .pos(
+                displayWidth - (double) displayWidth / allBlockStates.size() * blockStateQueue.size(),
+                displayHeight - 16,
+                0
+            )
+            .endVertex();
+        Tessellator.getInstance().draw();
         GlStateManager.enableTexture2D();
-        Minecraft.getMinecraft().fontRendererObj.drawString(lastState.toString(), 0, displayHeight - 32, 0xFFFFFFFF);
+        Minecraft.getMinecraft().fontRendererObj.drawString(
+            "Compressing queue size: " + compressorExecutor.getQueue().size(),
+            0,
+            displayHeight - 48,
+            0xFFFFFFFF
+        );
+        Minecraft.getMinecraft().fontRendererObj.drawString(
+            "Last rendered block state: " + Helpers.blockStateToString(lastState),
+            0,
+            displayHeight - 32,
+            0xFFFFFFFF
+        );
     }
 }

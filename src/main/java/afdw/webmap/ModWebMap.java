@@ -39,7 +39,9 @@ public class ModWebMap {
     public static ModWebMap INSTANCE;
 
     private static final Map<IBlockState, ImageEntry> imageCache = new ConcurrentHashMap<>();
-    private static final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+    private static final ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(
+        Runtime.getRuntime().availableProcessors()
+    );
     private static final int WORLD_SIZE = 64;
     private static final int WORLD_HEIGHT = 256;
     private static final int CHUNK_SIZE = 16;
