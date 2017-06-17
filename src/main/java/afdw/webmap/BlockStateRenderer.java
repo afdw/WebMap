@@ -210,7 +210,7 @@ public enum BlockStateRenderer {
         Tessellator.getInstance().draw();
         GlStateManager.enableTexture2D();
         Minecraft.getMinecraft().fontRendererObj.drawString(
-            "Compressing queue size: " + writerExecutor.getQueue().size(),
+            "Writing queue size: " + writerExecutor.getQueue().size(),
             0,
             displayHeight - 48,
             0xFFFFFFFF
